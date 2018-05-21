@@ -1,17 +1,21 @@
-
-import numpy as np
-
+import keras
+import keras.backend as K
 from keras.models import Sequential, Model
 from keras.layers import Dense, Activation, Flatten, Input, Concatenate
 from keras.optimizers import Adam
 
+from rl.processors import WhiteningNormalizerProcessor
 from rl.agents import DDPGAgent
+from rl.memory import SequentialMemory
+from rl.random import OrnsteinUhlenbeckProcess
 
 
 #Reference: https://github.com/keras-rl/keras-rl/blob/master/examples/ddpg_mujoco.py
 class Agent:
     def __init__(self,env):
         nb_actions = env.action_space.shape[0]
+        
+        self.env = env
         self.actor = self.build_actor(env)
         self.critic, action_input = self.build_critic(env)
         self.loss = self.build_loss()
@@ -24,7 +28,7 @@ class Agent:
                                   nb_steps_warmup_actor=1000,
                                   random_process=self.random_process, 
                                   gamma=.99, target_model_update=1e-3,
-                                  processor=MujocoProcessor()  )
+                                  processor=WhiteningNormalizerProcessor()  )
         self.agent.compile([Adam(lr=1e-4), Adam(lr=1e-3)], metrics=self.loss)
 
     def build_loss(self):
@@ -38,8 +42,12 @@ class Agent:
         actor.add(Activation('relu'))
         actor.add(Dense(300))
         actor.add(Activation('relu'))
-        actor.add(Dense(nb_actions))
-        actor.add(Activation('tanh'))
+        actor.add(Dense(nb_actions,
+                        activation='tanh',
+                        kernel_constraint=  keras.constraints.min_max_norm(
+                                            min_value=0,
+                                            max_value=nb_actions,
+                                            axis=1) ) )
         actor.summary()
 
         inD = Input(shape=(1,) + env.observation_space.shape)
@@ -64,8 +72,15 @@ class Agent:
         critic.summary()
 
         return critic, action_input
-
-
-
-
-
+    
+    def fit(self, **kwargs):
+        return self.agent.fit(self.env,**kwargs)
+    
+    def test(self, **kwargs):
+        return self.agent.test(self.env,**kwargs)
+    
+    def save_weights(self,filename='ddpg_{}_weights.h5f'):
+        self.agent.save_weights(filename.format("opensim"), overwrite=True)
+        
+    def load_weights(self,filename='ddpg_{}_weights.h5f'):
+        self.agent.load_weights(filename.format("opensim"))
