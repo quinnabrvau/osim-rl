@@ -8,4 +8,4 @@ for i in range(200):
     if done:
         env.reset()
         print(i)
-print observation
+print(observation)

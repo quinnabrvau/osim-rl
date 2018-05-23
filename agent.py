@@ -1,7 +1,7 @@
 import keras
 import keras.backend as K
 from keras.models import Sequential, Model
-from keras.layers import Dense, Activation, Flatten, Input, Concatenate
+from keras.layers import Dense, Activation, Flatten, Input, Concatenate, LeakyReLU
 from keras.optimizers import Adam
 
 from rl.processors import WhiteningNormalizerProcessor
@@ -21,14 +21,14 @@ class Agent:
         self.loss = self.build_loss()
 
         self.memory = SequentialMemory(limit=100000, window_length=1)
-        self.random_process = OrnsteinUhlenbeckProcess(size=nb_actions, theta=.15, mu=0., sigma=.1)
+        self.random_process = OrnsteinUhlenbeckProcess(size=nb_actions, theta=0.15, mu=0.5, sigma=0.5)
         self.agent = DDPGAgent(   nb_actions=nb_actions, actor=self.actor, 
                                   critic=self.critic, critic_action_input=action_input,
                                   memory=self.memory, nb_steps_warmup_critic=1000, 
                                   nb_steps_warmup_actor=1000,
                                   random_process=self.random_process, 
                                   gamma=.99, target_model_update=1e-3,
-                                  processor=WhiteningNormalizerProcessor()  )
+                                  processor=None  )
         self.agent.compile([Adam(lr=1e-4), Adam(lr=1e-3)], metrics=self.loss)
 
     def build_loss(self):
@@ -39,15 +39,11 @@ class Agent:
         actor = Sequential()
         actor.add(Flatten(input_shape=(1,) + env.observation_space.shape))
         actor.add(Dense(400))
-        actor.add(Activation('relu'))
-        actor.add(Dense(300))
-        actor.add(Activation('relu'))
+        actor.add(LeakyReLU(alpha=0.2))
+        actor.add(Dense(400))
+        actor.add(LeakyReLU(alpha=0.2))
         actor.add(Dense(nb_actions,
-                        activation='tanh',
-                        kernel_constraint=  keras.constraints.min_max_norm(
-                                            min_value=0,
-                                            max_value=nb_actions,
-                                            axis=1) ) )
+                        activation='tanh' ) )
         actor.summary()
 
         inD = Input(shape=(1,) + env.observation_space.shape)
@@ -61,10 +57,10 @@ class Agent:
         observation_input = Input(shape=(1,) + env.observation_space.shape, name='observation_input')
         flattened_observation = Flatten()(observation_input)
         x = Dense(400)(flattened_observation)
-        x = Activation('relu')(x)
+        x = LeakyReLU(alpha=0.2)(x)
         x = Concatenate()([x, action_input])
-        x = Dense(300)(x)
-        x = Activation('relu')(x)
+        x = Dense(400)(x)
+        x = LeakyReLU(alpha=0.2)(x)
         x = Dense(1)(x)
         x = Activation('linear')(x)
 
