@@ -6,7 +6,7 @@
         <length_units>meters</length_units>
         <force_units>N</force_units>
         <!--Acceleration due to gravity.-->
-        <gravity> 0 -9.80665 0</gravity>
+        <gravity> 10 -9.80665 0</gravity>
         <!--Bodies in the model.-->
         <BodySet>
             <objects>
@@ -2886,20 +2886,17 @@
 
 
 
-                <PointActuator name="VA_forward">
+                <!-- <PointActuator name="VA_forward">
                     <isDisabled>false</isDisabled>
-                        <!--Minimum allowed value for control signal. Used primarily when solving for control values-->
                     <min_control> 0 </min_control>
-                        <!--Maximum allowed value for control signal. Used primarily when solving for control values-->
                     <max_control> 1 </max_control>
                     <body> pelvis </body>
                     <optimal_force>10000000</optimal_force>
-
                     <point> -0.0707 0.00000000 0.00000000 </point> 
                     <point_is_global> false </point_is_global> 
                     <direction> -1 0.05 0 </direction> 
                     <force_is_global> true </force_is_global>                         
-                </PointActuator>
+                </PointActuator> -->
 
 
 
