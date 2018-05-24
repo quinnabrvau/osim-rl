@@ -137,10 +137,10 @@ class Agent:
     def test(self, **kwargs):
         return self.agent.test(self.env,**kwargs)
     
-    def save_weights(self,filename='ddpg_{}_weights.h5f'):
+    def save_weights(self,filename='osim-rl/ddpg_{}_weights.h5f'):
         self.agent.save_weights(filename.format("opensim"), overwrite=True)
         
-    def load_weights(self,filename='ddpg_{}_weights.h5f'):
+    def load_weights(self,filename='osim-rl/ddpg_{}_weights.h5f'):
         self.agent.load_weights(filename.format("opensim"))
         
 #class SymetricProcessor(Processor):
