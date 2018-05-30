@@ -38,13 +38,14 @@ class Agent:
         self.sym_actor = self.build_sym_actor()
         self.sym_actor.compile(optimizer='Adam',loss='mse')
 
+
     def build_loss(self):
         return ['mse']
 
     def build_actor(self,env):
         actor = Sequential()
         actor.add(Flatten(input_shape=(1,) + env.observation_space.shape))
-        actor.add(Dense(200))
+        actor.add(Dense(400))
         actor.add(LeakyReLU(alpha=0.2))
         actor.add(Dense(200))
         actor.add(LeakyReLU(alpha=0.2))
@@ -121,6 +122,9 @@ class Agent:
         
         return Model(inD,out)
         
+        
+        
+    
     def fit(self, **kwargs):
         out = self.agent.fit(self.env,**kwargs)
 #        print("Do symetric loss back propigation")
@@ -136,8 +140,8 @@ class Agent:
         print("testing")
         print("gravity:",self.env.get_grav(),"VA:",self.env.get_VA())
         return self.test(**kwargs).history['nb_steps'][-1]
-    
-    def save_weights(self,filename='ddpg_{}_weights.h5f'):
+
+    def save_weights(self,filename='osim-rl/ddpg_{}_weights.h5f'):
         self.agent.save_weights(filename.format("opensim"), overwrite=True)
         
     def load_weights(self,filename='ddpg_{}_weights.h5f'):
@@ -190,7 +194,7 @@ class Agent:
 
 if __name__=='__main__':
     from osim.env import L2RunEnv as ENV 
-    env = ENV(visualize=True)
+    env = ENV(visualize=False)
     agent = Agent(env)
     env.osim_model.list_elements()
     
