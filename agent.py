@@ -2,6 +2,7 @@ import keras
 import keras.backend as K
 from keras.models import Sequential, Model
 from keras.layers import Dense, Activation, Flatten, Input, Concatenate, LeakyReLU
+from keras.layers import BatchNormalization
 from keras.optimizers import Adam
 
 from rl.core import Processor
@@ -23,14 +24,14 @@ class Agent:
         self.critic, action_input = self.build_critic(env)
         self.loss = self.build_loss()
 
-        self.memory = SequentialMemory(limit=100000, window_length=1)
+        self.memory = SequentialMemory(limit=5000000, window_length=1)
         self.random_process = OrnsteinUhlenbeckProcess(size=self.nb_actions, 
                                   theta=0.75, mu=0.5, sigma=0.25)
         self.agent = DDPGAgent(   nb_actions=self.nb_actions, 
                                   actor=self.actor, 
                                   critic=self.critic, critic_action_input=action_input,
-                                  memory=self.memory, nb_steps_warmup_critic=1000, 
-                                  nb_steps_warmup_actor=1000,
+                                  memory=self.memory, nb_steps_warmup_critic=100, 
+                                  nb_steps_warmup_actor=100,
                                   random_process=self.random_process, 
                                   gamma=.99, target_model_update=1e-3,
                                   processor=None  )
@@ -44,12 +45,13 @@ class Agent:
     def build_actor(self,env):
         actor = Sequential()
         actor.add(Flatten(input_shape=(1,) + env.observation_space.shape))
-        actor.add(Dense(200))
+        actor.add(BatchNormalization())
+        actor.add(Dense(600))
         actor.add(LeakyReLU(alpha=0.2))
-        actor.add(Dense(200))
+        actor.add(Dense(400))
         actor.add(LeakyReLU(alpha=0.2))
         actor.add(Dense(self.nb_actions,
-                        activation='tanh' ) )
+                        activation='sigmoid' ) )
         actor.summary()
 
         inD = Input(shape=(1,) + env.observation_space.shape)
@@ -61,7 +63,8 @@ class Agent:
         action_input = Input(shape=(self.nb_actions,), name='action_input')
         observation_input = Input(shape=(1,) + env.observation_space.shape, name='observation_input')
         flattened_observation = Flatten()(observation_input)
-        x = Dense(200)(flattened_observation)
+        flattened_observation = BatchNormalization()(flattened_observation)
+        x = Dense(300)(flattened_observation)
         x = LeakyReLU(alpha=0.2)(x)
         x = Concatenate()([x, action_input])
         x = Dense(200)(x)
@@ -74,6 +77,7 @@ class Agent:
 
         return critic, action_input
     
+    # TODO detect _r and _l and swap automatically
     def build_sym_actor(self):
         stateSwaps = [ 
           (6,8),  (7,9),   #hip_l, hip_r
@@ -123,10 +127,11 @@ class Agent:
         
     def fit(self, **kwargs):
         out = self.agent.fit(self.env,**kwargs)
-        print("Do symetric loss back propigation")
-        states = np.random.normal(0,5,(kwargs['nb_steps']//200,1,self.nb_states))
-        actions = self.actor.predict_on_batch(states)
-        self.sym_actor.train_on_batch(states,actions)
+        # TODO uncomment after fix sym function
+#        print("Do symetric loss back propigation")
+#        states = np.random.normal(0,5,(kwargs['nb_steps']//200,1,self.nb_states))
+#        actions = self.actor.predict_on_batch(states)
+#        self.sym_actor.train_on_batch(states,actions)
         return out
     
     def test(self, **kwargs):
@@ -143,6 +148,7 @@ class Agent:
     def load_weights(self,filename='ddpg_{}_weights.h5f'):
         self.agent.load_weights(filename.format("opensim"))
         
+    # TODO Fix
     def search_VA(self):
         va_state = [self.env.get_grav(),self.env.get_VA()]
         va_goal = [1.0, 0.0]
@@ -190,7 +196,7 @@ class Agent:
 
 if __name__=='__main__':
     from osim.env import L2RunEnv as ENV 
-    env = ENV(visualize=True)
+    env = ENV(visualize=False)
     agent = Agent(env)
     env.osim_model.list_elements()
     

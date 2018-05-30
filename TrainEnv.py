@@ -48,7 +48,7 @@ class TrainEnv(ENV):
         if not p_state_desc:
             return 0
         #hieght reward for standing tall
-        hieght_reward = state_desc["body_pos"]["pelvis"][1] -(self.terminal_height)
+        hieght_reward = state_desc["body_pos"]["pelvis"][1] -(self.terminal_height)/5
         #velocity reward for moving forward
         velocity_reward = (state_desc["joint_pos"][self.primary_joint][0] -
                            p_state_desc["joint_pos"][self.primary_joint][0] )
@@ -69,6 +69,8 @@ if __name__=='__main__':
     env = TrainEnv(visualize=False)
     env.reset()
     sim = env.osim_model
+    r = env.get_observation()
+    print('len',len(r))
     i = 0
     print(env.get_VA())
     env.upd_VA(8.0)
@@ -103,7 +105,7 @@ if __name__=='__main__':
         print(i,"\tbody_acc_rot",state_desc["body_acc_rot"][body_part][2:])
         i+=1
 
-    for joint in ["hip_l","hip_r","knee_l","knee_r","ankle_l","ankle_r",]:
+    for joint in ["ankle_l","ankle_r","back","hip_l","hip_r","knee_l","knee_r"]:
         print(joint)
         print(i,'\tjoint_pos',state_desc["joint_pos"][joint])
         i += len(state_desc["joint_pos"][joint])
@@ -124,6 +126,9 @@ if __name__=='__main__':
     print(i,'center of mass pos',state_desc["misc"]["mass_center_pos"])
     i += len(state_desc["misc"]["mass_center_pos"])
     print(i,'center of mass vel',state_desc["misc"]["mass_center_vel"])
+    i += len(state_desc["misc"]["mass_center_vel"])
+    print(i,'center of mass vel',state_desc["misc"]["mass_center_acc"])
+    i += len(state_desc["misc"]["mass_center_acc"])
+    print(i)
 
-    
     

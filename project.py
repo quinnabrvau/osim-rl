@@ -16,16 +16,16 @@ observation = env.reset( )
 
 agent = Agent(env)
 GlobalAgent = agent
-T_steps = 5000
+T_steps = 200
 W_steps = 1000
-agent.load_weights( )
+#agent.load_weights( )
 h = agent.test(nb_episodes=1, visualize=True, nb_max_episode_steps=1000)
-for i in range(300): # Train in smaller batches to allow for interuption
+for i in range(1): # Train in smaller batches to allow for interuption
     print("\n\niteration:",i)
     print(agent.env.get_grav(),agent.env.get_VA())
     agent.fit(nb_steps=T_steps, visualize=False, verbose=2)
     ## Always save new weights
-    agent.save_weights( )
+#    agent.save_weights( )
     
     steps_ = agent.test_get_steps(nb_episodes=1, visualize=True, nb_max_episode_steps=W_steps)
     if steps_>(W_steps*7)//10:
