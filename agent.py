@@ -10,8 +10,7 @@ from rl.memory import SequentialMemory
 from rl.random import OrnsteinUhlenbeckProcess
 
 import numpy as np
-
-from math import pi
+from math import sin, cos, pi
 
 #Reference: https://github.com/keras-rl/keras-rl/blob/master/examples/ddpg_mujoco.py
 class Agent:
@@ -26,7 +25,7 @@ class Agent:
 
         self.memory = SequentialMemory(limit=100000, window_length=1)
         self.random_process = OrnsteinUhlenbeckProcess(size=self.nb_actions, 
-                                  theta=0.15, mu=0.5, sigma=0.5)
+                                  theta=0.75, mu=0.5, sigma=0.25)
         self.agent = DDPGAgent(   nb_actions=self.nb_actions, 
                                   actor=self.actor, 
                                   critic=self.critic, critic_action_input=action_input,
@@ -39,16 +38,15 @@ class Agent:
         self.sym_actor = self.build_sym_actor()
         self.sym_actor.compile(optimizer='Adam',loss='mse')
 
-
     def build_loss(self):
         return ['mse']
 
     def build_actor(self,env):
         actor = Sequential()
         actor.add(Flatten(input_shape=(1,) + env.observation_space.shape))
-        actor.add(Dense(400))
+        actor.add(Dense(200))
         actor.add(LeakyReLU(alpha=0.2))
-        actor.add(Dense(400))
+        actor.add(Dense(200))
         actor.add(LeakyReLU(alpha=0.2))
         actor.add(Dense(self.nb_actions,
                         activation='tanh' ) )
@@ -63,10 +61,10 @@ class Agent:
         action_input = Input(shape=(self.nb_actions,), name='action_input')
         observation_input = Input(shape=(1,) + env.observation_space.shape, name='observation_input')
         flattened_observation = Flatten()(observation_input)
-        x = Dense(400)(flattened_observation)
+        x = Dense(200)(flattened_observation)
         x = LeakyReLU(alpha=0.2)(x)
         x = Concatenate()([x, action_input])
-        x = Dense(400)(x)
+        x = Dense(200)(x)
         x = LeakyReLU(alpha=0.2)(x)
         x = Dense(1)(x)
         x = Activation('linear')(x)
@@ -123,19 +121,21 @@ class Agent:
         
         return Model(inD,out)
         
-        
-        
-    
     def fit(self, **kwargs):
         out = self.agent.fit(self.env,**kwargs)
-        print("Do symetric loss back propigation")
-        states = np.random.normal(0,pi/2,(kwargs['nb_steps'],1,self.nb_states))
-        actions = self.actor.predict_on_batch(states)
-        self.sym_actor.train_on_batch(states,actions)
+#        print("Do symetric loss back propigation")
+#        states = np.random.normal(0,pi/2,(kwargs['nb_steps'],1,self.nb_states))
+#        actions = self.actor.predict_on_batch(states)
+#        self.sym_actor.train_on_batch(states,actions)
         return out
     
     def test(self, **kwargs):
         return self.agent.test(self.env,**kwargs)
+    
+    def test_get_steps(self, **kwargs):
+        print("testing")
+        print("gravity:",self.env.get_grav(),"VA:",self.env.get_VA())
+        return self.test(**kwargs).history['nb_steps'][-1]
     
     def save_weights(self,filename='ddpg_{}_weights.h5f'):
         self.agent.save_weights(filename.format("opensim"), overwrite=True)
@@ -143,41 +143,54 @@ class Agent:
     def load_weights(self,filename='ddpg_{}_weights.h5f'):
         self.agent.load_weights(filename.format("opensim"))
         
-#class SymetricProcessor(Processor):
-#    def process_reward(self,reward):
-#        if GlobalAgent is None:
-#            return reward
-#        symetric_reward = 0
-#        
-#        state = np.random.normal(0,pi/2,(nb_actions,))
-#        pol = GlobalAgent.actor.predict(state)
-#        
-#        symState = transState(state)
-#        symPol = transAction(GlobalAgent.actor.predict(symState))
-#        
-#        symetric_reward = np.sum(np.abs(np.subtract(pol,symPol)))/1000
-#        
-#        return reward-symetric_reward
-# 
-#swaps = [ (2,3), #hip_l, hip_r
-#          (4,5), #knee_l, knee_r
-#          (6,7), #ankle_l, ankle_r
-#          (17,20),(18,21),(19,22), #toes_l, toes_r
-#          (23,26),(24,27),(25,28)#talus_l, talus_r
-#          ]
-#def transState(state):
-#    for swap in swaps:
-#        foo = state[swap[0]]
-#        state[swap[0]]=state[swap[1]]
-#        state[swap[1]]=foo
-#    return state
-#
-#def transAction(action):
-#    action[:9], action[9:] = action[9:], action[:9]
+    def search_VA(self):
+        va_state = [self.env.get_grav(),self.env.get_VA()]
+        va_goal = [1.0, 0.0]
+        if va_state[0]==va_goal[0] and va_state[1]==va_goal[1]:
+            return
+        theta = np.linspace(0,pi/2,5)
+        print(theta)
+        theta_, dist_ = 0, 0
+        print("current test")
+#        target_percent = 0.6 * self.test_get_steps( nb_episodes=1, 
+#                                                    visualize=True, 
+#                                                    nb_max_episode_steps=1000 )
+        direct = [ va_goal[0]-va_state[0], va_goal[1]-va_state[1] ]
+        t_dist = direct[0]**2+direct[1]**2
+        if t_dist < 0.1:
+            self.env.upd_grav(va_goal[0])
+            self.env.upd_VA(va_goal[1])
+            return
+#        for t in theta:
+#            d = 1
+#            self.env.upd_grav(va_state[0]+d*direct[0]*cos(t))
+#            self.env.upd_VA(va_state[1]+d*direct[1]*sin(t))
+#            print(t,d)
+#            test_percent = self.test_get_steps(     nb_episodes=1, 
+#                                                    visualize=True, 
+#                                                    nb_max_episode_steps=1000 )
+#            while(test_percent<target_percent and d>0.05):
+#                print("test percent < target precent", test_percent<target_percent,
+#                      "d",d)
+#                d -= (d/4)
+#                self.env.upd_grav(va_state[0]+d*direct[0]*cos(t))
+#                self.env.upd_VA(va_state[1]+d*direct[1]*sin(t))
+#                print(t,d)
+#                test_percent = self.test_get_steps( nb_episodes=1, 
+#                                                    visualize=True, 
+#                                                    nb_max_episode_steps=1000 )
+#            if d>dist_:
+#                theta_, dist_ = t, d
+#        dist_ = direct[0]*direct[0]- direct[1]*direct[1]
+        dist_ = t_dist / 4
+        self.env.upd_grav(va_state[0]+direct[0]/2)
+        self.env.upd_VA(va_state[1]+direct[1]/2)
+        
+        
 
 if __name__=='__main__':
     from osim.env import L2RunEnv as ENV 
-    env = ENV(visualize=False)
+    env = ENV(visualize=True)
     agent = Agent(env)
     env.osim_model.list_elements()
     

@@ -16,14 +16,27 @@ class TrainEnv(ENV):
     primary_joint = "ground_pelvis"
     def __init__(self,**kwargs):
         ENV.__init__(self,**kwargs)
-        self.Grav = self.osim_model.model.getGravity()
-        self.Grav.set(1,-6)
-        self.upd_VA(4)
-            
-    def upd_VA(self,new_force=1.0):
-        self.Grav.set(0,new_force)
-        self.osim_model.model.setGravity(self.Grav)
-#        self.osim_model.model.upd_gravity()
+        self.grav = self.osim_model.model.getGravity()
+        self.gravReal = self.grav.get(1)
+        self.upd_grav(0.8)
+        self.upd_VA(1.5)
+    
+    def upd_grav(self,new_grav=1.0):
+        if new_grav>1.1:
+            warnings.warn('new gravity value too large, setting gravity to 1.1G')
+            new_grav=1.1
+        elif new_grav<0.3:
+            warnings.warn('new gravity value too small, setting gravity to 0.3G')
+            new_grav=0.3
+        self.grav.set(1,new_grav*self.gravReal)
+        self.osim_model.model.setGravity(self.grav)
+        
+    def get_grav(self):
+        return self.osim_model.model.getGravity().get(1)/self.gravReal
+    
+    def upd_VA(self,new_force=0.0):
+        self.grav.set(0,new_force)
+        self.osim_model.model.setGravity(self.grav)
             
     def get_VA(self):
         return self.osim_model.model.getGravity().get(0)
@@ -33,10 +46,15 @@ class TrainEnv(ENV):
         p_state_desc = self.get_prev_state_desc()
         if not p_state_desc:
             return 0
-        hieght_reward = ( self.terminal_height -
-                         state_desc["joint_pos"][self.primary_joint][1] )/10
-        velocity_reward =( state_desc["joint_pos"][self.primary_joint][0] - 
-                         p_state_desc["joint_pos"][self.primary_joint][0] ) 
+        hieght_reward = 0.05
+        if state_desc["body_pos"]["pelvis"][1] < self.terminal_height+0.05:
+            hieght_reward = -0.05
+        velocity_reward = (state_desc["joint_pos"][self.primary_joint][0] -
+                           p_state_desc["joint_pos"][self.primary_joint][0] )
+#        if (state_desc["joint_pos"][self.primary_joint][0] <
+#            p_state_desc["joint_pos"][self.primary_joint][0]):
+#            velocity_reward = 0
+#        print(hieght_reward,velocity_reward)
         return hieght_reward+velocity_reward
         
 
@@ -51,7 +69,7 @@ class TrainEnv(ENV):
         
         
 if __name__=='__main__':
-    env = TrainEnv(visualize=True)
+    env = TrainEnv(visualize=False)
     env.reset()
     sim = env.osim_model
     print(env.get_VA())
