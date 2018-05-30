@@ -123,10 +123,10 @@ class Agent:
         
     def fit(self, **kwargs):
         out = self.agent.fit(self.env,**kwargs)
-#        print("Do symetric loss back propigation")
-#        states = np.random.normal(0,pi/2,(kwargs['nb_steps'],1,self.nb_states))
-#        actions = self.actor.predict_on_batch(states)
-#        self.sym_actor.train_on_batch(states,actions)
+        print("Do symetric loss back propigation")
+        states = np.random.normal(0,5,(kwargs['nb_steps']//200,1,self.nb_states))
+        actions = self.actor.predict_on_batch(states)
+        self.sym_actor.train_on_batch(states,actions)
         return out
     
     def test(self, **kwargs):

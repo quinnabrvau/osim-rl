@@ -8,9 +8,10 @@ Created on Sun May 20 20:42:18 2018
 import warnings
 import opensim
 import os
-from osim.env import L2RunEnv as ENV # rename environment to be used for training
+from osim.env import ProstheticsEnv as ENV # rename environment to be used for training
 
 class TrainEnv(ENV):
+    prosthetic = False
 #    model_path = os.path.join(os.path.dirname(__file__), 'models/Skel_model_with_VA.osim')
     terminal_height = 0.7
     primary_joint = "ground_pelvis"
@@ -46,15 +47,11 @@ class TrainEnv(ENV):
         p_state_desc = self.get_prev_state_desc()
         if not p_state_desc:
             return 0
-        hieght_reward = 0.05
-        if state_desc["body_pos"]["pelvis"][1] < self.terminal_height+0.05:
-            hieght_reward = -0.05
+        #hieght reward for standing tall
+        hieght_reward = state_desc["body_pos"]["pelvis"][1] -(self.terminal_height)
+        #velocity reward for moving forward
         velocity_reward = (state_desc["joint_pos"][self.primary_joint][0] -
                            p_state_desc["joint_pos"][self.primary_joint][0] )
-#        if (state_desc["joint_pos"][self.primary_joint][0] <
-#            p_state_desc["joint_pos"][self.primary_joint][0]):
-#            velocity_reward = 0
-#        print(hieght_reward,velocity_reward)
         return hieght_reward+velocity_reward
         
 
@@ -72,22 +69,61 @@ if __name__=='__main__':
     env = TrainEnv(visualize=False)
     env.reset()
     sim = env.osim_model
+    i = 0
     print(env.get_VA())
     env.upd_VA(8.0)
     print(env.get_VA())
     state_desc = env.osim_model.get_state_desc()
-    print('ground_pelvis pos',state_desc["joint_pos"]["ground_pelvis"])
-    print('ground_pelvis vel',state_desc["joint_vel"]["ground_pelvis"])
+    for body_part in ["pelvis"]:
+        print(body_part)
+        print(i,"\tbody_pos",state_desc["body_pos"][body_part][1:2])
+        i+=1
+        print(i,"\tbody_vel",state_desc["body_vel"][body_part][0:2])
+        i+=2
+        print(i,"\tbody_acc",state_desc["body_acc"][body_part][0:2])
+        i+=2
+        print(i,"\tbody_pos_rot",state_desc["body_pos_rot"][body_part][2:])
+        i+=1
+        print(i,"\tbody_vel_rot",state_desc["body_vel_rot"][body_part][2:])
+        i+=1
+        print(i,"\tbody_acc_rot",state_desc["body_acc_rot"][body_part][2:])
+        i+=1
+    for body_part in ["head","torso","toes_l","toes_r","talus_l","talus_r"]:
+        print(body_part)
+        print(i,"\tbody_pos",state_desc["body_pos"][body_part][0:2])
+        i+=2
+        print(i,"\tbody_vel",state_desc["body_vel"][body_part][0:2])
+        i+=2
+        print(i,"\tbody_acc",state_desc["body_acc"][body_part][0:2])
+        i+=2
+        print(i,"\tbody_pos_rot",state_desc["body_pos_rot"][body_part][2:])
+        i+=1
+        print(i,"\tbody_vel_rot",state_desc["body_vel_rot"][body_part][2:])
+        i+=1
+        print(i,"\tbody_acc_rot",state_desc["body_acc_rot"][body_part][2:])
+        i+=1
 
     for joint in ["hip_l","hip_r","knee_l","knee_r","ankle_l","ankle_r",]:
-        print(joint+' pos',state_desc["joint_pos"][joint])
-        print(joint+' vel',state_desc["joint_vel"][joint])
+        print(joint)
+        print(i,'\tjoint_pos',state_desc["joint_pos"][joint])
+        i += len(state_desc["joint_pos"][joint])
+        print(i,'\tjoint_vel',state_desc["joint_vel"][joint])
+        i += len(state_desc["joint_vel"][joint])
+        print(i,'\tjoint_acc',state_desc["joint_acc"][joint])
+        i += len(state_desc["joint_acc"][joint])
 
-    for body_part in ["head", "pelvis", "torso", "toes_l", "toes_r", "talus_l", "talus_r"]:
-        print(body_part,state_desc["body_pos"][body_part][0:2])
+    for muscle in state_desc["muscles"].keys():
+        print(muscle)
+        print(i,'\tactivation',[state_desc["muscles"][muscle]["activation"]])
+        i += 1
+        print(i,'\tfiber_length',[state_desc["muscles"][muscle]["fiber_length"]])
+        i += 1
+        print(i,'\tfiber_velocity',[state_desc["muscles"][muscle]["fiber_velocity"]]) 
+        i += 1
 
-    print('center of mass pos',state_desc["misc"]["mass_center_pos"])
-    print('center of mass vel',state_desc["misc"]["mass_center_vel"])
+    print(i,'center of mass pos',state_desc["misc"]["mass_center_pos"])
+    i += len(state_desc["misc"]["mass_center_pos"])
+    print(i,'center of mass vel',state_desc["misc"]["mass_center_vel"])
 
     
     
