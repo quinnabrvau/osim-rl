@@ -17,22 +17,7 @@ class TrainEnv(ENV):
     def __init__(self,**kwargs):
         ENV.__init__(self,**kwargs)
         self.grav = self.osim_model.model.getGravity()
-        self.gravReal = self.grav.get(1)
-        self.upd_grav(0.8)
-        self.upd_VA(1.5)
-    
-    def upd_grav(self,new_grav=1.0):
-        if new_grav>1.1:
-            warnings.warn('new gravity value too large, setting gravity to 1.1G')
-            new_grav=1.1
-        elif new_grav<0.3:
-            warnings.warn('new gravity value too small, setting gravity to 0.3G')
-            new_grav=0.3
-        self.grav.set(1,new_grav*self.gravReal)
-        self.osim_model.model.setGravity(self.grav)
-        
-    def get_grav(self):
-        return self.osim_model.model.getGravity().get(1)/self.gravReal
+        self.upd_VA(0.0)    
     
     def upd_VA(self,new_force=0.0):
         self.grav.set(0,new_force)
