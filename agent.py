@@ -141,10 +141,10 @@ class Agent:
     
     def fit(self, **kwargs):
         out = self.agent.fit(self.env,**kwargs)
-#        print("Do symetric loss back propigation")
-#        states = np.random.normal(0,pi/2,(kwargs['nb_steps'],1,self.nb_states))
-#        actions = self.actor.predict_on_batch(states)
-#        self.sym_actor.train_on_batch(states,actions)
+        print("Do symetric loss back propigation")
+        states = np.random.normal(0,20,(kwargs['nb_steps'],1,self.nb_states))
+        actions = self.actor.predict_on_batch(states)
+        self.sym_actor.train_on_batch(states,actions)
         return out
     
     def test(self, **kwargs):
@@ -171,7 +171,7 @@ class Agent:
         steps = self.test_get_steps(nb_episodes=1, visualize=False, nb_max_episode_steps=1000)
         dv = 0.0
         dsteps = steps
-        while (state-dv>goal and dsteps > 0.6*steps):
+        while (state-dv>goal and dsteps > 0.8*steps):
             dv += 0.02
             self.env.upd_VA(state-dv)
             dsteps = self.test_get_steps(nb_episodes=1, visualize=False, nb_max_episode_steps=1000)
@@ -192,9 +192,10 @@ class Agent:
     def load_processor(self):
         f = np.load( 'osim-rl/processor.npz' )
         dtype = f['_sum'].dtype
-        self.processor.normalizer = WhiteningNormalizer(shape=(1,)+env.observation_space.shape, dtype=dtype)
+        if (self.processor.normalizer==None):
+            self.processor.normalizer = WhiteningNormalizer(shape=(1,)+self.env.observation_space.shape, dtype=dtype)
         self.processor.normalizer._sum = f['_sum']
-        self.processor.normalizer._count = f['_count']
+        self.processor.normalizer._count = int(f['_count'][0])
         self.processor.normalizer._sumsq = f['_sumsq']
         self.processor.normalizer.mean = f['mean']
         self.processor.normalizer.std = f['std']
