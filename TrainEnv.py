@@ -19,21 +19,24 @@ class TrainEnv(ENV):
         ENV.__init__(self,**kwargs)
         self.grav = self.osim_model.model.getGravity()
         self.gravReal = self.grav.get(1)
-        self.upd_grav(0.8)
+        self.upd_grav(8)
         self.upd_VA(1.5)
     
-    def upd_grav(self,new_grav=1.0):
-        if new_grav>1.1:
+    def upd_grav(self,new_grav=9.8):
+        if new_grav<1.1*self.gravReal:
             warnings.warn('new gravity value too large, setting gravity to 1.1G')
-            new_grav=1.1
-        elif new_grav<0.3:
+            new_grav=1.1*self.gravReal
+        elif new_grav>0.3*self.gravReal:
             warnings.warn('new gravity value too small, setting gravity to 0.3G')
-            new_grav=0.3
-        self.grav.set(1,new_grav*self.gravReal)
+            new_grav=0.3*self.gravReal
+        self.grav.set(1,new_grav)
         self.osim_model.model.setGravity(self.grav)
         
+    def get_grav_real(self):
+        return self.gravReal
+    
     def get_grav(self):
-        return self.osim_model.model.getGravity().get(1)/self.gravReal
+        return self.osim_model.model.getGravity().get(1)
     
     def upd_VA(self,new_force=0.0):
         self.grav.set(0,new_force)
@@ -48,7 +51,7 @@ class TrainEnv(ENV):
         if not p_state_desc:
             return 0
         #hieght reward for standing tall
-        hieght_reward = state_desc["body_pos"]["pelvis"][1] -(self.terminal_height)/5
+        hieght_reward = state_desc["body_pos"]["pelvis"][1] - self.terminal_height
         #velocity reward for moving forward
         velocity_reward = (state_desc["joint_pos"][self.primary_joint][0] -
                            p_state_desc["joint_pos"][self.primary_joint][0] )

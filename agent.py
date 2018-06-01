@@ -5,7 +5,8 @@ from keras.layers import Dense, Activation, Flatten, Input, Concatenate, LeakyRe
 from keras.layers import BatchNormalization
 from keras.optimizers import Adam
 
-from rl.core import Processor
+from rl.util import WhiteningNormalizer
+from rl.processors import WhiteningNormalizerProcessor
 from rl.agents import DDPGAgent
 from rl.memory import SequentialMemory
 from rl.random import OrnsteinUhlenbeckProcess
@@ -23,6 +24,7 @@ class Agent:
         self.actor = self.build_actor(env)
         self.critic, action_input = self.build_critic(env)
         self.loss = self.build_loss()
+        self.processor = WhiteningNormalizerProcessor()
 
         self.memory = SequentialMemory(limit=5000000, window_length=1)
         self.random_process = OrnsteinUhlenbeckProcess(size=self.nb_actions, 
@@ -30,11 +32,11 @@ class Agent:
         self.agent = DDPGAgent(   nb_actions=self.nb_actions, 
                                   actor=self.actor, 
                                   critic=self.critic, critic_action_input=action_input,
-                                  memory=self.memory, nb_steps_warmup_critic=100, 
-                                  nb_steps_warmup_actor=100,
+                                  memory=self.memory, nb_steps_warmup_critic=1000, 
+                                  nb_steps_warmup_actor=1000,
                                   random_process=self.random_process, 
                                   gamma=.99, target_model_update=1e-3,
-                                  processor=None  )
+                                  processor=self.processor  )
         self.agent.compile([Adam(lr=1e-4), Adam(lr=1e-3)], metrics=self.loss)
         self.sym_actor = self.build_sym_actor()
         self.sym_actor.compile(optimizer='Adam',loss='mse')
@@ -45,7 +47,7 @@ class Agent:
     def build_actor(self,env):
         actor = Sequential()
         actor.add(Flatten(input_shape=(1,) + env.observation_space.shape))
-        actor.add(BatchNormalization())
+#        actor.add(BatchNormalization())
         actor.add(Dense(600))
         actor.add(LeakyReLU(alpha=0.2))
         actor.add(Dense(400))
@@ -63,7 +65,7 @@ class Agent:
         action_input = Input(shape=(self.nb_actions,), name='action_input')
         observation_input = Input(shape=(1,) + env.observation_space.shape, name='observation_input')
         flattened_observation = Flatten()(observation_input)
-        flattened_observation = BatchNormalization()(flattened_observation)
+#        flattened_observation = BatchNormalization()(flattened_observation)
         x = Dense(300)(flattened_observation)
         x = LeakyReLU(alpha=0.2)(x)
         x = Concatenate()([x, action_input])
@@ -79,24 +81,32 @@ class Agent:
     
     # TODO detect _r and _l and swap automatically
     def build_sym_actor(self):
-        stateSwaps = [ 
-          (6,8),  (7,9),   #hip_l, hip_r
-          (10,12),(11,13), #knee_l, knee_r
-          (14,16),(15,17), #ankle_l, ankle_r
-          (24,26),(25,27), #toes_l, toes_r
-          (23,26),(24,27), #talus_l, talus_r
-          ]
-        actionSwaps = [ (0,9),(1,10),(2,11),(3,12),(4,13),(5,14),
-                        (6,15),(7,16),(8,17) ]
+        stateSwap = []
+        actionSwap = []
+        state_desc = self.env.get_state_desc()
+        for x in state_desc.keys():
+            keys = list(state_desc[x].keys())
+            for (k,key) in enumerate(keys):
+                if '_r' in key:
+                    i = keys.index(key.replace('_r','_l'))
+                    if i != -1:
+                        stateSwap += [ (k,i),(i,k) ]
+        muscle_list = []
+        for i in range(self.env.osim_model.muscleSet.getSize()):
+            muscle_list.append( self.env.osim_model.muscleSet.get(i).getName() )
+        for (k,key) in enumerate(muscle_list):
+            if '_r' in key:
+                i = muscle_list.index(key.replace('_r','_l'))
+                if i != -1:
+                    actionSwap += [ (k,i),(i,k) ]
+
         stateSwapMat = np.zeros((self.nb_states,self.nb_states))
         actionSwapMat = np.zeros((self.nb_actions,self.nb_actions))
         stateSwapMat[0,0]
-        for (i,j) in stateSwaps:
+        for (i,j) in stateSwap:
             stateSwapMat[i,j] = 1
-            stateSwapMat[j,i] = 1
-        for (i,j) in actionSwaps:
+        for (i,j) in actionSwap:
             actionSwapMat[i,j] = 1
-            actionSwapMat[j,i] = 1
         def ssT(shape,dtype=None):
             if shape!=stateSwapMat.shape:
                 raise Exception("State Swap Tensor Shape Error")
@@ -127,11 +137,10 @@ class Agent:
         
     def fit(self, **kwargs):
         out = self.agent.fit(self.env,**kwargs)
-        # TODO uncomment after fix sym function
-#        print("Do symetric loss back propigation")
-#        states = np.random.normal(0,5,(kwargs['nb_steps']//200,1,self.nb_states))
-#        actions = self.actor.predict_on_batch(states)
-#        self.sym_actor.train_on_batch(states,actions)
+        print("\n\ndo symetric loss back propigation\n\n")
+        states = np.random.normal(0,10,(kwargs['nb_steps']//200,1,self.nb_states))
+        actions = self.actor.predict_on_batch(states)
+        self.sym_actor.train_on_batch(states,actions)
         return out
     
     def test(self, **kwargs):
@@ -141,64 +150,83 @@ class Agent:
         print("testing")
         print("gravity:",self.env.get_grav(),"VA:",self.env.get_VA())
         return self.test(**kwargs).history['nb_steps'][-1]
-    
-    def save_weights(self,filename='ddpg_{}_weights.h5f'):
+
+    def save_weights(self,filename='osim-rl/ddpg_{}_weights.h5f'):
         self.agent.save_weights(filename.format("opensim"), overwrite=True)
+        self.save_processor()
         
-    def load_weights(self,filename='ddpg_{}_weights.h5f'):
+    def load_weights(self,filename='osim-rl/ddpg_{}_weights.h5f'):
         self.agent.load_weights(filename.format("opensim"))
+        self.load_processor()
         
-    # TODO Fix
+    # TODO Fix make 2d
     def search_VA(self):
-        va_state = [self.env.get_grav(),self.env.get_VA()]
-        va_goal = [1.0, 0.0]
-        if va_state[0]==va_goal[0] and va_state[1]==va_goal[1]:
+        # 1-D line search
+        state = np.array([self.env.get_VA(), self.env.get_grav()])
+        goal = np.array([0.0, self.env.get_grav_real()])
+        direct = (goal-state)/20
+        if np.linalg.norm(state-goal)<0.01:
+            self.env.upd_VA(goal[0])
+            self.env.upd_grav(goal[1])
             return
-        theta = np.linspace(0,pi/2,5)
-        print(theta)
-        theta_, dist_ = 0, 0
-        print("current test")
-#        target_percent = 0.6 * self.test_get_steps( nb_episodes=1, 
-#                                                    visualize=True, 
-#                                                    nb_max_episode_steps=1000 )
-        direct = [ va_goal[0]-va_state[0], va_goal[1]-va_state[1] ]
-        t_dist = direct[0]**2+direct[1]**2
-        if t_dist < 0.1:
-            self.env.upd_grav(va_goal[0])
-            self.env.upd_VA(va_goal[1])
-            return
-#        for t in theta:
-#            d = 1
-#            self.env.upd_grav(va_state[0]+d*direct[0]*cos(t))
-#            self.env.upd_VA(va_state[1]+d*direct[1]*sin(t))
-#            print(t,d)
-#            test_percent = self.test_get_steps(     nb_episodes=1, 
-#                                                    visualize=True, 
-#                                                    nb_max_episode_steps=1000 )
-#            while(test_percent<target_percent and d>0.05):
-#                print("test percent < target precent", test_percent<target_percent,
-#                      "d",d)
-#                d -= (d/4)
-#                self.env.upd_grav(va_state[0]+d*direct[0]*cos(t))
-#                self.env.upd_VA(va_state[1]+d*direct[1]*sin(t))
-#                print(t,d)
-#                test_percent = self.test_get_steps( nb_episodes=1, 
-#                                                    visualize=True, 
-#                                                    nb_max_episode_steps=1000 )
-#            if d>dist_:
-#                theta_, dist_ = t, d
-#        dist_ = direct[0]*direct[0]- direct[1]*direct[1]
-        dist_ = t_dist / 4
-        self.env.upd_grav(va_state[0]+direct[0]/2)
-        self.env.upd_VA(va_state[1]+direct[1]/2)
+        steps = self.test_get_steps(nb_episodes=1, visualize=False, nb_max_episode_steps=1000)
+        DV = [ np.array([direct[0]*cos(t),direct[1]*sin(t)]) for t in np.linspace(0,pi/2,5) ]
+        best_dv = DV[0]
+        for dv in DV:
+            dsteps = steps
+            for i in range(10):
+                if dsteps < 0.6 * steps:
+                    break
+                dv *= 1.35
+                foo = state+dv
+                self.env.upd_VA(foo[0])
+                self.env.upd_grav(foo[1])
+                dsteps = self.test_get_steps(nb_episodes=1, visualize=False, nb_max_episode_steps=1000)
+            if np.linalg.norm( (state-dv) - goal )<0.01:
+                self.env.upd_VA(goal[0])
+                self.env.upd_grav(goal[1])
+                return
+            else:
+                dv /= 1.1
+                if np.linalg.norm(dv)>np.linalg.norm(best_dv):
+                    best_dv = dv
+        foo = state-best_dv
+        self.env.upd_VA(foo[0])
+        self.env.upd_grav(foo[1])
+            
+    def save_processor(self):
+        np.savez( 'osim-rl/processor.npz',
+                  _sum=self.processor.normalizer._sum,
+                  _count=np.array([self.processor.normalizer._count]),
+                  _sumsq=self.processor.normalizer._sumsq,
+                  mean=self.processor.normalizer.mean,
+                  std=self.processor.normalizer.std )
         
-        
+    def load_processor(self):
+        f = np.load( 'osim-rl/processor.npz' )
+        dtype = f['_sum'].dtype
+        if self.processor.normalizer is None:
+            self.processor.normalizer = WhiteningNormalizer(shape=(1,)+env.observation_space.shape, dtype=dtype)
+        self.processor.normalizer._sum = f['_sum']
+        self.processor.normalizer._count = int(f['_count'][0])
+        self.processor.normalizer._sumsq = f['_sumsq']
+        self.processor.normalizer.mean = f['mean']
+        self.processor.normalizer.std = f['std']
 
 if __name__=='__main__':
-    from osim.env import L2RunEnv as ENV 
+    from TrainEnv import TrainEnv as ENV 
     env = ENV(visualize=False)
+    env.upd_grav(-8.0)
+    env.upd_VA(3.0)
+    env.reset()
     agent = Agent(env)
     env.osim_model.list_elements()
+    agent.fit(nb_steps=150, visualize=False, verbose=2, nb_max_episode_steps=1000)
+    h = agent.test(nb_episodes=1, visualize=True, nb_max_episode_steps=1000)
+    agent.search_VA()
+    agent.save_weights()
+    agent2 = Agent(env)
+    agent2.load_weights()
     
     
     
