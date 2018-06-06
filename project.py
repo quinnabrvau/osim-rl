@@ -16,11 +16,12 @@ observation = env.reset( )
 
 agent = Agent(env)
 GlobalAgent = agent
-T_steps = 3000
+T_steps = 5000
 W_steps = 1000
 #agent.load_weights( )
-h = agent.test(nb_episodes=1, visualize=True, nb_max_episode_steps=1000)
-for i in range(50): # Train in smaller batches to allow for interuption
+h = agent.test_get_steps(nb_episodes=1, visualize=True, nb_max_episode_steps=1000)
+data = [h]
+for i in range(1000): # Train in smaller batches to allow for interuption
     print("\n\niteration:",i)
     print(agent.env.get_grav(),agent.env.get_VA())
     agent.fit(nb_steps=T_steps, visualize=False, verbose=2)
@@ -28,10 +29,18 @@ for i in range(50): # Train in smaller batches to allow for interuption
     agent.save_weights( )
     
     steps_ = agent.test_get_steps(nb_episodes=1, visualize=True, nb_max_episode_steps=W_steps)
+    data.append(h)
+    np.savez('osim-rl/steps_plot.npz',data=data)
     if steps_>(W_steps*7)//10:
 #        T_steps = (T_steps*5)//4
 #        W_steps = (W_steps*3)//2
         agent.search_VA()
+
+from matplotlib import pyplot as plt
+plt.plot(data)
+plt.title('run steps')
+plt.xlabel('iterations')
+plt.savefig('osim-rl/steps_plot.png')
 
 # Finally, evaluate our algorithm for 5 episodes.
 h = agent.test(nb_episodes=5, visualize=True, nb_max_episode_steps=1000)

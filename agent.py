@@ -1,8 +1,7 @@
-import keras
 import keras.backend as K
 from keras.models import Sequential, Model
-from keras.layers import Dense, Activation, Flatten, Input, Concatenate, LeakyReLU
-from keras.layers import BatchNormalization
+from keras.layers import Dense, Flatten, Input, Concatenate
+from keras.layers import GaussianNoise
 from keras.optimizers import Adam
 
 from rl.util import WhiteningNormalizer
@@ -28,7 +27,7 @@ class Agent:
 
         self.memory = SequentialMemory(limit=5000000, window_length=1)
         self.random_process = OrnsteinUhlenbeckProcess(size=self.nb_actions, 
-                                  theta=0.75, mu=0.5, sigma=0.25)
+                                  theta=0.03, mu=0.2, sigma=0.3)
         self.agent = DDPGAgent(   nb_actions=self.nb_actions, 
                                   actor=self.actor, 
                                   critic=self.critic, critic_action_input=action_input,
@@ -37,7 +36,9 @@ class Agent:
                                   random_process=self.random_process, 
                                   gamma=.99, target_model_update=1e-3,
                                   processor=self.processor  )
-        self.agent.compile([Adam(lr=1e-4), Adam(lr=1e-3)], metrics=self.loss)
+        self.agent.compile([Adam(lr=1e-4), 
+                            Adam(lr=1e-2)], 
+                            metrics=self.loss)
         self.sym_actor = self.build_sym_actor()
         self.sym_actor.compile(optimizer='Adam',loss='mse')
 
@@ -48,10 +49,12 @@ class Agent:
         actor = Sequential()
         actor.add(Flatten(input_shape=(1,) + env.observation_space.shape))
 #        actor.add(BatchNormalization())
-        actor.add(Dense(600))
-        actor.add(LeakyReLU(alpha=0.2))
-        actor.add(Dense(400))
-        actor.add(LeakyReLU(alpha=0.2))
+        actor.add(Dense(200,
+                        activation='relu') )
+        actor.add(GaussianNoise(0.1))
+        actor.add(Dense(100,
+                        activation='relu') )
+        actor.add(GaussianNoise(0.1))
         actor.add(Dense(self.nb_actions,
                         activation='sigmoid' ) )
         actor.summary()
@@ -66,20 +69,17 @@ class Agent:
         observation_input = Input(shape=(1,) + env.observation_space.shape, name='observation_input')
         flattened_observation = Flatten()(observation_input)
 #        flattened_observation = BatchNormalization()(flattened_observation)
-        x = Dense(300)(flattened_observation)
-        x = LeakyReLU(alpha=0.2)(x)
+        x = Dense(100,activation='relu')(flattened_observation)
         x = Concatenate()([x, action_input])
-        x = Dense(200)(x)
-        x = LeakyReLU(alpha=0.2)(x)
+        x = Dense(50,activation='relu')(x)
         x = Dense(1)(x)
-        x = Activation('linear')(x)
+#        x = Activation('linear')(x)
 
         critic = Model(inputs=[action_input, observation_input], outputs=x)
         critic.summary()
 
         return critic, action_input
     
-    # TODO detect _r and _l and swap automatically
     def build_sym_actor(self):
         stateSwap = []
         actionSwap = []
@@ -136,6 +136,10 @@ class Agent:
         return Model(inD,out)
         
     def fit(self, **kwargs):
+        if 'nb_max_episode_steps' in kwargs.keys():
+            self.env.spec.timestep_limit=kwargs['nb_max_episode_steps']
+        else:
+            self.env.spec.timestep_limit=self.env.time_limit
         out = self.agent.fit(self.env,**kwargs)
         print("\n\ndo symetric loss back propigation\n\n")
         states = np.random.normal(0,10,(kwargs['nb_steps']//200,1,self.nb_states))
@@ -144,6 +148,10 @@ class Agent:
         return out
     
     def test(self, **kwargs):
+        if 'nb_max_episode_steps' in kwargs.keys():
+            self.env.spec.timestep_limit=kwargs['nb_max_episode_steps']
+        else:
+            self.env.spec.timestep_limit=self.env.time_limit
         return self.agent.test(self.env,**kwargs)
     
     def test_get_steps(self, **kwargs):
@@ -206,7 +214,7 @@ class Agent:
         f = np.load( 'osim-rl/processor.npz' )
         dtype = f['_sum'].dtype
         if self.processor.normalizer is None:
-            self.processor.normalizer = WhiteningNormalizer(shape=(1,)+env.observation_space.shape, dtype=dtype)
+            self.processor.normalizer = WhiteningNormalizer(shape=(1,)+self.env.observation_space.shape, dtype=dtype)
         self.processor.normalizer._sum = f['_sum']
         self.processor.normalizer._count = int(f['_count'][0])
         self.processor.normalizer._sumsq = f['_sumsq']
