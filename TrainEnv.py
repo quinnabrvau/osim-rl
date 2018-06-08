@@ -23,9 +23,9 @@ class TrainEnv(ENV):
         self.upd_VA(1.5)
     
     def upd_grav(self,new_grav=9.8):
-        if new_grav<1.1*self.gravReal:
+        if new_grav<1.5*self.gravReal:
             warnings.warn('new gravity value too large, setting gravity to 1.1G')
-            new_grav=1.1*self.gravReal
+            new_grav=1.5*self.gravReal
         elif new_grav>0.3*self.gravReal:
             warnings.warn('new gravity value too small, setting gravity to 0.3G')
             new_grav=0.3*self.gravReal
@@ -57,20 +57,8 @@ class TrainEnv(ENV):
         #velocity reward for moving forward
         velocity_reward = (state_desc["joint_pos"][self.primary_joint][0] -
                            p_state_desc["joint_pos"][self.primary_joint][0] )
-        step_reward = (self.osim_model.istep/10000)
-        return hieght_reward+velocity_reward+step_reward
-        
+        return hieght_reward+velocity_reward
 
- 
-        
-        
-        
-        
-# TODO: define virtual assistant forces on agent
-# TODO: define search through easier environments
-# TODO: make environment harder once the agent has trained for challenge
-        
-        
 if __name__=='__main__':
     env = TrainEnv(visualize=False)
     env.reset()

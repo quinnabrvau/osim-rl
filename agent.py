@@ -48,15 +48,14 @@ class Agent:
     def build_actor(self,env):
         actor = Sequential()
         actor.add(Flatten(input_shape=(1,) + env.observation_space.shape))
-#        actor.add(BatchNormalization())
-        actor.add(Dense(200,
-                        activation='relu') )
-        actor.add(GaussianNoise(0.1))
-        actor.add(Dense(100,
-                        activation='relu') )
-        actor.add(GaussianNoise(0.1))
+        actor.add(Dense(64,
+                        activation='tanh') )
+        actor.add(GaussianNoise(0.05))
+        actor.add(Dense(64,
+                        activation='tanh') )
+        actor.add(GaussianNoise(0.05))
         actor.add(Dense(self.nb_actions,
-                        activation='sigmoid' ) )
+                        activation='hard_sigmoid' ) )
         actor.summary()
 
         inD = Input(shape=(1,) + env.observation_space.shape)
@@ -68,12 +67,10 @@ class Agent:
         action_input = Input(shape=(self.nb_actions,), name='action_input')
         observation_input = Input(shape=(1,) + env.observation_space.shape, name='observation_input')
         flattened_observation = Flatten()(observation_input)
-#        flattened_observation = BatchNormalization()(flattened_observation)
-        x = Dense(100,activation='relu')(flattened_observation)
+        x = Dense(64,activation='relu')(flattened_observation)
         x = Concatenate()([x, action_input])
-        x = Dense(50,activation='relu')(x)
+        x = Dense(32,activation='relu')(x)
         x = Dense(1)(x)
-#        x = Activation('linear')(x)
 
         critic = Model(inputs=[action_input, observation_input], outputs=x)
         critic.summary()
@@ -148,6 +145,8 @@ class Agent:
         return out
     
     def test(self, **kwargs):
+        print("testing")
+        print("gravity:",self.env.get_grav(),"VA:",self.env.get_VA())
         if 'nb_max_episode_steps' in kwargs.keys():
             self.env.spec.timestep_limit=kwargs['nb_max_episode_steps']
         else:
@@ -155,8 +154,6 @@ class Agent:
         return self.agent.test(self.env,**kwargs)
     
     def test_get_steps(self, **kwargs):
-        print("testing")
-        print("gravity:",self.env.get_grav(),"VA:",self.env.get_VA())
         return self.test(**kwargs).history['nb_steps'][-1]
 
     def save_weights(self,filename='osim-rl/ddpg_{}_weights.h5f'):
@@ -167,7 +164,6 @@ class Agent:
         self.agent.load_weights(filename.format("opensim"))
         self.load_processor()
         
-    # TODO Fix make 2d
     def search_VA(self):
         # 1-D line search
         state = np.array([self.env.get_VA(), self.env.get_grav()])
@@ -223,9 +219,9 @@ class Agent:
 
 if __name__=='__main__':
     from TrainEnv import TrainEnv as ENV 
-    env = ENV(visualize=False)
-    env.upd_grav(-8.0)
-    env.upd_VA(3.0)
+    env = ENV(visualize=True)
+    env.upd_grav(-5.0)
+    env.upd_VA(6.0)
     env.reset()
     agent = Agent(env)
     env.osim_model.list_elements()

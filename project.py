@@ -24,7 +24,7 @@ data = [h]
 for i in range(1000): # Train in smaller batches to allow for interuption
     print("\n\niteration:",i)
     print(agent.env.get_grav(),agent.env.get_VA())
-    agent.fit(nb_steps=T_steps, visualize=False, verbose=2)
+    agent.fit(nb_steps=T_steps, visualize=False, verbose=2, nb_max_episode_steps=W_steps)
     ## Always save new weights
     agent.save_weights( )
     
@@ -32,8 +32,8 @@ for i in range(1000): # Train in smaller batches to allow for interuption
     data.append(h)
     np.savez('osim-rl/steps_plot.npz',data=data)
     if steps_>(W_steps*7)//10:
-#        T_steps = (T_steps*5)//4
-#        W_steps = (W_steps*3)//2
+        T_steps = (T_steps*5)//4
+        W_steps = (W_steps*3)//2
         agent.search_VA()
 
 from matplotlib import pyplot as plt
