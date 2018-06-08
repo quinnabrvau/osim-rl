@@ -51,9 +51,9 @@ class Agent:
         actor.add(Flatten(input_shape=(1,) + env.observation_space.shape))
 #        actor.add(BatchNormalization())
         actor.add(Dense(64,activation='tanh'))
-        actor.add(GaussianNoise(0.1))
+        actor.add(GaussianNoise(0.05))
         actor.add(Dense(64,activation='tanh'))
-        actor.add(GaussianNoise(0.1))
+        actor.add(GaussianNoise(0.05))
         actor.add(Dense(self.nb_actions,
                         activation='hard_sigmoid' ) )
         actor.summary()
@@ -204,7 +204,7 @@ class Agent:
 
 if __name__=='__main__':
     from osim.env import L2RunEnv as ENV 
-    env = ENV(visualize=False)
+    env = ENV(visualize=True)
     env.reset()
     agent = Agent(env)
     env.osim_model.list_elements()

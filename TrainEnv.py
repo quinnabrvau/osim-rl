@@ -37,17 +37,7 @@ class TrainEnv(ENV):
         velocity_reward = (state_desc["joint_pos"][self.primary_joint][0] -
                            p_state_desc["joint_pos"][self.primary_joint][0] )
         return hieght_reward+velocity_reward
-        
 
- 
-        
-        
-        
-        
-# TODO: define virtual assistant forces on agent
-# TODO: define search through easier environments
-# TODO: make environment harder once the agent has trained for challenge
-        
         
 if __name__=='__main__':
     env = TrainEnv(visualize=False)
