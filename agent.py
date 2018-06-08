@@ -2,7 +2,7 @@ import keras
 import keras.backend as K
 from keras.models import Sequential, Model
 from keras.layers import Dense, Activation, Flatten, Input, Concatenate
-from keras.layers import BatchNormalization, LeakyReLU
+from keras.layers import BatchNormalization, LeakyReLU, GaussianNoise
 from keras.optimizers import Adam
 
 from rl.util import WhiteningNormalizer
@@ -50,12 +50,12 @@ class Agent:
         actor = Sequential()
         actor.add(Flatten(input_shape=(1,) + env.observation_space.shape))
 #        actor.add(BatchNormalization())
-        actor.add(Dense(400))
-        actor.add(LeakyReLU(alpha=0.2))
-        actor.add(Dense(200))
-        actor.add(LeakyReLU(alpha=0.2))
+        actor.add(Dense(64,activation='tanh'))
+        actor.add(GaussianNoise(0.1))
+        actor.add(Dense(64,activation='tanh'))
+        actor.add(GaussianNoise(0.1))
         actor.add(Dense(self.nb_actions,
-                        activation='tanh' ) )
+                        activation='hard_sigmoid' ) )
         actor.summary()
 
         inD = Input(shape=(1,) + env.observation_space.shape)
@@ -68,11 +68,13 @@ class Agent:
         observation_input = Input(shape=(1,) + env.observation_space.shape, name='observation_input')
         flattened_observation = Flatten()(observation_input)
 #        flattened_observation = BatchNormalization()(flattened_observation)
-        x = Dense(200)(flattened_observation)
+        x = Dense(64)(flattened_observation)
         x = LeakyReLU(alpha=0.2)(x)
+        x = GaussianNoise(0.1)(x)
         x = Concatenate()([x, action_input])
-        x = Dense(200)(x)
+        x = Dense(64)(x)
         x = LeakyReLU(alpha=0.2)(x)
+        x = GaussianNoise(0.1)(x)
         x = Dense(1)(x)
         x = Activation('linear')(x)
 
