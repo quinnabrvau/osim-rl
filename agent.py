@@ -145,7 +145,7 @@ class Agent:
     
     def test(self, **kwargs):
         print("testing")
-        print("gravity:",self.env.get_grav(),"VA:",self.env.get_VA())
+        print("VA:",self.env.get_VA())
         if 'nb_max_episode_steps' in kwargs.keys():
             self.env.spec.timestep_limit=kwargs['nb_max_episode_steps']
         else:
@@ -203,7 +203,7 @@ class Agent:
         self.processor.normalizer.std = f['std']
 
 if __name__=='__main__':
-    from osim.env import L2RunEnv as ENV 
+    from TrainEnv import TrainEnv as ENV 
     env = ENV(visualize=True)
     env.reset()
     agent = Agent(env)
