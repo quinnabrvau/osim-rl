@@ -32,13 +32,14 @@ class TrainEnv(ENV):
         if not p_state_desc:
             return 0
         #hieght reward for standing tall
-        hieght_reward = state_desc["body_pos"]["pelvis"][1] -(self.terminal_height)
+        hieght_reward = state_desc["body_pos"]["pelvis"][1] - self.terminal_height
+        if hieght_reward > 0.1:
+            hieght_reward = 0.1
         #velocity reward for moving forward
         velocity_reward = (state_desc["joint_pos"][self.primary_joint][0] -
                            p_state_desc["joint_pos"][self.primary_joint][0] )
         return hieght_reward+velocity_reward
 
-        
 if __name__=='__main__':
     env = TrainEnv(visualize=False)
     env.reset()

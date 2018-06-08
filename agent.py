@@ -27,7 +27,7 @@ class Agent:
         self.loss = self.build_loss()
         self.processor = WhiteningNormalizerProcessor()
 
-        self.memory = SequentialMemory(limit=100000, window_length=1)
+        self.memory = SequentialMemory(limit=5000000, window_length=1)
         self.random_process = OrnsteinUhlenbeckProcess(size=self.nb_actions, 
                                   theta=0.75, mu=0.5, sigma=0.25)
         self.agent = DDPGAgent(   nb_actions=self.nb_actions, 
@@ -49,7 +49,6 @@ class Agent:
     def build_actor(self,env):
         actor = Sequential()
         actor.add(Flatten(input_shape=(1,) + env.observation_space.shape))
-#        actor.add(BatchNormalization())
         actor.add(Dense(64,activation='tanh'))
         actor.add(GaussianNoise(0.05))
         actor.add(Dense(64,activation='tanh'))
@@ -67,16 +66,10 @@ class Agent:
         action_input = Input(shape=(self.nb_actions,), name='action_input')
         observation_input = Input(shape=(1,) + env.observation_space.shape, name='observation_input')
         flattened_observation = Flatten()(observation_input)
-#        flattened_observation = BatchNormalization()(flattened_observation)
-        x = Dense(64)(flattened_observation)
-        x = LeakyReLU(alpha=0.2)(x)
-        x = GaussianNoise(0.1)(x)
+        x = Dense(64,activation='relu')(flattened_observation)
         x = Concatenate()([x, action_input])
-        x = Dense(64)(x)
-        x = LeakyReLU(alpha=0.2)(x)
-        x = GaussianNoise(0.1)(x)
+        x = Dense(32,activation='relu')(x)
         x = Dense(1)(x)
-        x = Activation('linear')(x)
 
         critic = Model(inputs=[action_input, observation_input], outputs=x)
         critic.summary()
@@ -138,18 +131,25 @@ class Agent:
         
         return Model(inD,out)
         
-        
-        
-    
     def fit(self, **kwargs):
+        if 'nb_max_episode_steps' in kwargs.keys():
+            self.env.spec.timestep_limit=kwargs['nb_max_episode_steps']
+        else:
+            self.env.spec.timestep_limit=self.env.time_limit
         out = self.agent.fit(self.env,**kwargs)
-        print("Do symetric loss back propigation")
-        states = np.random.normal(0,20,(kwargs['nb_steps'],1,self.nb_states))
+        print("\n\ndo symetric loss back propigation\n\n")
+        states = np.random.normal(0,10,(kwargs['nb_steps']//200,1,self.nb_states))
         actions = self.actor.predict_on_batch(states)
         self.sym_actor.train_on_batch(states,actions)
         return out
     
     def test(self, **kwargs):
+        print("testing")
+        print("gravity:",self.env.get_grav(),"VA:",self.env.get_VA())
+        if 'nb_max_episode_steps' in kwargs.keys():
+            self.env.spec.timestep_limit=kwargs['nb_max_episode_steps']
+        else:
+            self.env.spec.timestep_limit=self.env.time_limit
         return self.agent.test(self.env,**kwargs)
     
     def test_get_steps(self, **kwargs):
@@ -210,6 +210,7 @@ if __name__=='__main__':
     env.osim_model.list_elements()
     agent.fit(nb_steps=150, visualize=False, verbose=2, nb_max_episode_steps=1000)
     h = agent.test(nb_episodes=5, visualize=True, nb_max_episode_steps=1000)
+    agent.search_VA()
     agent.save_weights()
     agent2 = Agent(env)
     agent2.load_weights()
